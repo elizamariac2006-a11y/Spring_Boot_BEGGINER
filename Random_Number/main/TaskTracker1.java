@@ -4,19 +4,24 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @RestController
 public class TaskTracker1 {
-    private class Task {
+    public class Task {
         private String task_description;
         private int task_id;
         private boolean done;
         private boolean in_progress;
         private int in_which_list;
+        private LocalDateTime created;
+        private LocalDateTime updated;
 
         public Task(String task_description,  int id) {
+            created = LocalDateTime.now();
+            updated = created;
             this.task_description = task_description;
             this.task_id = id;
             this.done = false;
@@ -24,29 +29,62 @@ public class TaskTracker1 {
             in_which_list = 2; //undone
         }
 
-        public void do_task() {
+        private void do_task() {
             in_which_list = 1; //done
             this.in_progress = false;
             this.done = true;
         }
 
-        public void undo_task() {
+        private void undo_task() {
             this.in_progress = false;
             this.done = false;
             in_which_list = 2; //undone
         }
 
-        public void start_task() {
+        private void start_task() {
             this.in_progress = true;
             this.done = false;
             this.in_which_list = 3; //in progress
         }
 
-        @Override
-        public String toString() {
-            return "{ Task : " + task_description + " Id : " + task_id + "} <br>";
+        private void update_task(String new_desciption) {
+            this.task_description = new_desciption;
+            updated = LocalDateTime.now();
         }
 
+        @Override
+        public String toString() {
+            return " Task : " + task_description + " Id : " + task_id + " Created : " + created + " Updated : " + updated +
+                    " <br>";
+        }
+
+        public String getTask_description() {
+            return task_description;
+        }
+
+        public int getTask_id() {
+            return task_id;
+        }
+
+        public boolean isDone() {
+            return done;
+        }
+
+        public boolean isIn_progress() {
+            return in_progress;
+        }
+
+        public int getIn_which_list() {
+            return in_which_list;
+        }
+
+        public LocalDateTime getCreated() {
+            return created;
+        }
+
+        public LocalDateTime getUpdated() {
+            return updated;
+        }
     }
 
 
@@ -55,14 +93,22 @@ public class TaskTracker1 {
 
     @GetMapping("/tasks")
     public String get_intro() {
-        return "For seeing the tasks go to /show?status=help for information. <br>" +
-                "Go to /mark progress?id=.. to mark an task as in progress<br>";
+        return "For seeing the tasks per cathegories go to /list?status=help for information. <br>" +
+                "Go to /mark-in-progress?id=.. to mark an task as in progress<br>" +
+                "Go to /mark-done?id=.. to mark a task as done <br>" +
+                "Go to /add?task=.. to add a new task to the list<br>" +
+                "Go to /list to list all the tasks and their status<br>" +
+                "Go to /update?id=..&task=.. to update an task.";
     }
 
-    @GetMapping("/show")
-    public Object get_tasks(@RequestParam String status) {
+    @GetMapping("/list")
+    public Object get_tasks(@RequestParam(required = false) String status) {
+        if(status == null) {
+            return this.task_list;
+        }
+
         if(status.equalsIgnoreCase("help")) {
-            return "status=done for tasks that are done <br>status=prog for tasks that are in progress <br>status=undone for tasks that are not started yet" +
+            return "status=done for tasks that are done <br>status=prog for tasks that are in progress <br>status=todo for tasks that are not started yet" +
                     " <br>status=help for help";
         }
 
@@ -101,10 +147,10 @@ public class TaskTracker1 {
        return "Task added successfully.. Id = " + contor;
     }
 
-    @GetMapping("/mark progress")
+    @GetMapping("/mark-in-progress")
     public String mark_in_progress(@RequestParam int id) {
         if(id > contor) {
-            return "Task not found..";
+            return "There is no task with such id..";
         }
 
         for(Task task : task_list) {
@@ -114,13 +160,13 @@ public class TaskTracker1 {
             }
         }
 
-        return "Task not found..";
+        return "There is no task with such id..";
     }
 
-    @GetMapping("/done")
+    @GetMapping("/mark-done")
     public String mark_as_done(@RequestParam int id) {
         if(id > contor) {
-            return "Task not found..";
+            return "There is no task with such id..";
         }
 
         for(Task task : task_list) {
@@ -130,22 +176,31 @@ public class TaskTracker1 {
             }
         }
 
-        return "Task not found..";
+        return "There is no task with such id..";
     }
 
-    @GetMapping("/undo")
-    public String undo_task(@RequestParam int id) {
+    @GetMapping("/update")
+    String update_task(@RequestParam int id, @RequestParam String task) {
         if(id > contor) {
-            return "Task not found..";
+            return "There is no task with such id..";
         }
 
-        for(Task task : task_list) {
-            if(task.task_id == id) {
-                task.undo_task();
-                return "Task marked as undone...";
+        for(Task t : task_list) {
+            if(t.task_id == id) {
+                t.update_task(task);
+                return "Task updated successfully!";
             }
         }
 
-        return "Task not found..";
+        return "There is no task with such id..";
+    }
+
+    @GetMapping("/delete")
+    String delete_task(@RequestParam int id) {
+        boolean was_deleted = task_list.removeIf(t -> t.task_id == id);
+        if(was_deleted ) {
+            return "Task deleted successfully";
+        }
+        return "There is no id with such id..";
     }
 }
