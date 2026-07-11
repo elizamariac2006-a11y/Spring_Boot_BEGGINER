@@ -1,18 +1,20 @@
 package com.luv2code.springboot.demo.mycoolapp.rest;
 
 import org.springframework.web.bind.annotation.*;
-import tools.jackson.databind.ObjectMapper;
 
 import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 
 @RestController
 public class TaskTracker1 {
-    //for json data saving:
-    private final String file_name = "tasks_saved.json";
-    private final ObjectMapper mapper = new ObjectMapper();
+
+    private final String file_name = "tasks_saved.txt";
+//    private final ObjectMapper mapper = new ObjectMapper();
 
     public static class Task {
         private String task_description;
@@ -31,6 +33,16 @@ public class TaskTracker1 {
             this.done = false;
             this.in_progress = false;
             in_which_list = 2; //undone
+        }
+
+        public Task(int id, String description, boolean done, boolean in_progress, int in_which_list, LocalDateTime created, LocalDateTime updated) {
+            this.task_id = id;
+            this.task_description = description;
+            this.done = done;
+            this.in_progress = in_progress;
+            this.in_which_list = in_which_list;
+            this.created = created;
+            this.updated = updated;
         }
 
         private void do_task() {
@@ -95,11 +107,54 @@ public class TaskTracker1 {
     List<Task> task_list = new ArrayList<>();
 
     private void save_data() {
+       try(PrintWriter writer = new PrintWriter(new FileWriter(file_name, false))) {
+           for(Task t : task_list) {
+               writer.println(t.task_id + "|" + t.task_description + "|" + t.in_which_list + "|"
+               + t.done + "|" + t.in_progress + "|" + t.created + "|" + t.updated);
+           }
+       } catch(Exception e) {
+           System.out.println("Error at saving data in teh text file : " +e.getMessage() + "\n");
+       }
+    }
+
+    private void load_data() {
         try {
-            mapper.writerWithDefaultPrettyPrinter().writeValue(new File(file_name), task_list);
+            File file = new File(file_name);
+            if (file.exists()) {
+                Scanner scanner = new Scanner(file);
+                task_list.clear();
+                int maximum_id = 0;
+
+                while(scanner.hasNextLine()) {
+                    String line = scanner.nextLine();
+                    if(line.trim().isEmpty()) {
+                        continue;
+                    }
+
+                    String[] info = line.split("\\|");
+                    int id = Integer.parseInt(info[0]);
+                    String description = info[1];
+                    int in_which_list = Integer.parseInt(info[2]);
+                    boolean done = Boolean.parseBoolean(info[3]);
+                    boolean in_progress = Boolean.parseBoolean(info[4]);
+                    LocalDateTime created = LocalDateTime.parse(info[5]);
+                    LocalDateTime updated = LocalDateTime.parse(info[6]);
+
+                    Task task = new Task(id, description, done, in_progress,  in_which_list, created, updated);
+                    task_list.add(task);
+
+                    maximum_id = Math.max(maximum_id, id);
+                }
+
+                contor = maximum_id;
+            }
         } catch(Exception e) {
-            System.out.println("Error at writing in the file : " + e.getMessage() + "\n");
+            System.out.println("Error at loading data in teh text file : " +e.getMessage() + "\n");
         }
+    }
+
+    TaskTracker1() {
+        load_data();
     }
 
     @GetMapping("/tasks")
@@ -146,8 +201,8 @@ public class TaskTracker1 {
         return return_list;
     }
 
-    @PostMapping("/add")
-    String add_task(@RequestParam String task) {
+    @GetMapping("/add") //PostMapping
+    public String add_task(@RequestParam String task) {
        for(Task t : task_list) {
            if(t.task_description.equalsIgnoreCase(task)) {
                return "Task already existent... Id = " + t.task_id;
@@ -155,10 +210,11 @@ public class TaskTracker1 {
        }
        contor++;
        task_list.add(new Task(task, contor));
-       return "Task added successfully.. Id = " + contor;
+        save_data();
+        return "Task added successfully.. Id = " + contor;
     }
 
-    @PatchMapping("/mark-in-progress")
+    @GetMapping("/mark-in-progress") //PatchMapping
     public String mark_in_progress(@RequestParam int id) {
         if(id > contor) {
             return "There is no task with such id..";
@@ -167,6 +223,7 @@ public class TaskTracker1 {
         for(Task task : task_list) {
             if(task.task_id == id) {
                 task.start_task();
+                save_data();
                 return "Task started successfully...";
             }
         }
@@ -174,7 +231,7 @@ public class TaskTracker1 {
         return "There is no task with such id..";
     }
 
-    @PatchMapping("/mark-done")
+    @GetMapping("/mark-done") //PatchMapping
     public String mark_as_done(@RequestParam int id) {
         if(id > contor) {
             return "There is no task with such id..";
@@ -183,6 +240,7 @@ public class TaskTracker1 {
         for(Task task : task_list) {
             if(task.task_id == id) {
                 task.do_task();
+                save_data();
                 return "Task marked as done...";
             }
         }
@@ -190,8 +248,8 @@ public class TaskTracker1 {
         return "There is no task with such id..";
     }
 
-    @PutMapping("/update")
-    String update_task(@RequestParam int id, @RequestParam String task) {
+    @GetMapping("/update") //PutMapping
+    public String update_task(@RequestParam int id, @RequestParam String task) {
         if(id > contor) {
             return "There is no task with such id..";
         }
@@ -199,6 +257,7 @@ public class TaskTracker1 {
         for(Task t : task_list) {
             if(t.task_id == id) {
                 t.update_task(task);
+                save_data();
                 return "Task updated successfully!";
             }
         }
@@ -206,10 +265,11 @@ public class TaskTracker1 {
         return "There is no task with such id..";
     }
 
-    @DeleteMapping("/delete")
-    String delete_task(@RequestParam int id) {
+    @GetMapping("/delete") //DeleteMapping
+    public String delete_task(@RequestParam int id) {
         boolean was_deleted = task_list.removeIf(t -> t.task_id == id);
         if(was_deleted ) {
+            save_data();
             return "Task deleted successfully";
         }
         return "There is no id with such id..";
